@@ -128,7 +128,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
 
       let prevOp = 'none'
 
-      function applyTx(state, tx, context) {
+      async function applyTx(state, tx, context) {
         /**
          * wrap the state and context for this one tx.
          * try applying this transaction.
@@ -140,7 +140,9 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         let txValidators = muta(context.validators)
         context = Object.assign({}, context, { validators: txValidators })
         try {
-          transactionHandlers.forEach(m => m(txState, tx, context))
+          const allpromises = [];
+          transactionHandlers.forEach(m => allpromises.push(m(txState, tx, context)));
+          await Promise.all(allpromises);
           /**
            * tx was applied without error.
            * now make sure something was mutated.
@@ -188,10 +190,10 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
           }
         },
         transition(action: Action) {
-          checkTransition(action.type)
+          checkTransition(action.type);
 
           if (action.type === 'transaction') {
-            applyTx(nextState, action.data, nextContext)
+            return applyTx(nextState, action.data, nextContext);
           } else if (action.type === 'block') {
             /**
              * end block.
@@ -233,8 +235,8 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         check(tx) {
           let context = Object.assign({}, nextContext, {
             validators: mempoolValidators,
-          })
-          applyTx(mempoolState, tx, context)
+          });
+          return applyTx(mempoolState, tx, context);
         },
 
         query(path) {
